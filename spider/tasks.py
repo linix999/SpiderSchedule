@@ -11,7 +11,6 @@ from .models import Spider,SuffixWords
 from hangzhou.models import MovieCrawlState
 from django.conf import settings
 
-
 @task()
 def add(x,y):
     return x+y
@@ -21,11 +20,21 @@ def setDeParams(dictPara):
     spiderName=dictPara.get('spider_name',"")
     searchWord = params.get('searchWord','')
     searchTaskId = str(params.get('searchTaskId', '-1'))
+    proxyType=params.get("proxyType","0")
+    limit=params.get("limit", "-1")
+    filterWords=params.get("filterWords", "")
+    necessaryWords=params.get("mustWord", "")
+    extraParams={
+        'proxytype':proxyType,
+        'limit':limit,
+        'filterWords':filterWords,
+        'necessaryWords':necessaryWords
+    }
     results=SuffixWords.objects.filter(status__exact=0)
     suffixWords=""
     for x in results:
         suffixWords=suffixWords+x.name+","
-    return searchWord.strip(),searchTaskId,suffixWords.rstrip(','),spiderName
+    return searchWord.strip(),searchTaskId,suffixWords.rstrip(','),spiderName,extraParams
 
 def commonSchedule(catagery,isChangeScheduleStatus):
     scrapyd = ScrapydAPI(settings.SCRAPYD_URL,timeout=8)
@@ -35,7 +44,8 @@ def commonSchedule(catagery,isChangeScheduleStatus):
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
         dictParam=json.loads(item.json) if item.json else {}
-        searchWord, searchTaskId,suffixWords,spiderName=setDeParams(dictParam)
+        searchWord, searchTaskId,suffixWords,spiderName,extraParams=setDeParams(dictParam)
+        extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
         if len(searchWord):
             if spiderName:
                 spiderList=Spider.objects.filter(name__exact=spiderName).filter(status__exact=0)
@@ -43,7 +53,7 @@ def commonSchedule(catagery,isChangeScheduleStatus):
                 spiderList=Spider.objects.filter(status__exact=0)
             for spider in spiderList:
                 project=spider.deployProject
-                scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords)
+                scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
             if isChangeScheduleStatus:
                 item.manage=1
             item.startNum=len(spiderList)
