@@ -30,11 +30,18 @@ def setDeParams(dictPara):
         'filterWords':filterWords,
         'necessaryWords':necessaryWords
     }
-    results=SuffixWords.objects.filter(status__exact=0)
-    suffixWords=""
-    for x in results:
-        suffixWords=suffixWords+x.name+","
-    return searchWord.strip(),searchTaskId,suffixWords.rstrip(','),spiderName,extraParams
+    suffixWords = params.get('attachWord','')
+    spiderNameList=spiderName.split(',')
+    if spiderNameList:
+        spiderList=[]
+        for spiderName in spiderNameList:
+            spiderObjs=Spider.objects.filter(name__exact=spiderName).filter(status__exact=0)
+            if spiderObjs:
+                spiderList.append(spiderObjs[0])
+    else:
+        spiderList = Spider.objects.filter(status__exact=0)
+
+    return searchWord.strip(),searchTaskId,suffixWords,spiderList,extraParams
 
 def commonSchedule(catagery,isChangeScheduleStatus):
     scrapyd = ScrapydAPI(settings.SCRAPYD_URL,timeout=8)
@@ -44,14 +51,11 @@ def commonSchedule(catagery,isChangeScheduleStatus):
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
         dictParam=json.loads(item.json) if item.json else {}
-        searchWord, searchTaskId,suffixWords,spiderName,extraParams=setDeParams(dictParam)
+        searchWord, searchTaskId,suffixWords,spiderList,extraParams=setDeParams(dictParam)
         extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
         if len(searchWord):
-            if spiderName:
-                spiderList=Spider.objects.filter(name__exact=spiderName).filter(status__exact=0)
-            else:
-                spiderList=Spider.objects.filter(status__exact=0)
             for spider in spiderList:
+                print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
                 project=spider.deployProject
                 scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
             if isChangeScheduleStatus:

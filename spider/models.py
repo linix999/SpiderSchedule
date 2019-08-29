@@ -26,6 +26,9 @@ class Spider(models.Model):
         return self.name
 
 class SuffixWords(models.Model):
+    """
+    由杭州那边维护并传参数过来，这边暂时不需要这个表了
+    """
     name=models.CharField(max_length=100,verbose_name='附加词名称')
     catagery = models.IntegerField(default=0,verbose_name='分类')
     status=models.IntegerField(choices=STATUS_CHOICES,verbose_name='状态')
