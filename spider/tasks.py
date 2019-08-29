@@ -60,7 +60,6 @@ def commonSchedule(catagery,isChangeScheduleStatus):
                 print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
                 project=spider.deployProject
                 scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
-
             item.startNum=len(spiderList)
         item.save()
 
