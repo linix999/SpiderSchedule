@@ -31,8 +31,8 @@ def setDeParams(dictPara):
         'necessaryWords':necessaryWords
     }
     suffixWords = params.get('attachWord','')
-    spiderNameList=spiderName.split(',')
-    if spiderNameList:
+    if spiderName:
+        spiderNameList = spiderName.split(',')
         spiderList=[]
         for spiderName in spiderNameList:
             spiderObjs=Spider.objects.filter(name__exact=spiderName).filter(status__exact=0)
@@ -50,6 +50,8 @@ def commonSchedule(catagery,isChangeScheduleStatus):
     else:
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
+        if isChangeScheduleStatus:
+            item.manage = 1
         dictParam=json.loads(item.json) if item.json else {}
         searchWord, searchTaskId,suffixWords,spiderList,extraParams=setDeParams(dictParam)
         extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
@@ -58,10 +60,9 @@ def commonSchedule(catagery,isChangeScheduleStatus):
                 print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
                 project=spider.deployProject
                 scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
-            if isChangeScheduleStatus:
-                item.manage=1
+
             item.startNum=len(spiderList)
-            item.save()
+        item.save()
 
 @periodic_task(run_every=3)
 def sheduleCustomerTask(**kwargs):
