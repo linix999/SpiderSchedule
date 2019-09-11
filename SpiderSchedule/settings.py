@@ -88,11 +88,11 @@ DATABASES = {
     },
     "hangzhou": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": "db_search",
-        "USER": "apps",
-        "PASSWORD": "apps_pwd",
+        "NAME": "",
+        "USER": "",
+        "PASSWORD": "",
         "HOST": "",
-        "PORT": "",
+        "PORT": "3306",
     },
 }
 
@@ -142,7 +142,9 @@ USE_TZ = False
 
 STATIC_URL = '/static/'
 
-SCRAPYD_URL = 'http://192.168.1.118:6800'
+SCRAPYD_URLS = [
+                'http://192.168.1.118:6800'
+                ]
 
 djcelery.setup_loader()
 BROKER_URL='amqp://guest@localhost//'

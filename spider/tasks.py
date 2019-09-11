@@ -11,9 +11,27 @@ from .models import Spider,SuffixWords
 from hangzhou.models import MovieCrawlState
 from django.conf import settings
 
+maxScheduleTasks=500
 @task()
 def add(x,y):
     return x+y
+
+def getRunServer(deployProject='searchSpiders'):
+    """
+    :return: 返回pending和running状态任务数最少的机器,暂时按每个任务进行一次安排。如果超过最大任务数就不添加任务
+    """
+    servers=settings.SCRAPYD_URLS
+    minTaskServer=None
+    minTasks=-1
+    for server in servers:
+        scrapyd = ScrapydAPI(server, timeout=8)
+        jobs=scrapyd.list_jobs(project=deployProject)
+        taskNums=len(jobs.get('pending',[]))+len(jobs.get('running',[]))
+        print("Running tasks is %s" %taskNums)
+        if taskNums<maxScheduleTasks and (taskNums<minTasks or minTasks<0) :
+            minTaskServer=server
+            minTasks=taskNums
+    return minTaskServer
 
 def setDeParams(dictPara):
     params=dictPara.get('dictParameters',{})
@@ -44,24 +62,26 @@ def setDeParams(dictPara):
     return searchWord.strip(),searchTaskId,suffixWords,spiderList,extraParams
 
 def commonSchedule(catagery,isChangeScheduleStatus):
-    scrapyd = ScrapydAPI(settings.SCRAPYD_URL,timeout=8)
     if catagery==1:
         results = MovieCrawlState.objects.filter(task__exact=catagery)
     else:
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
-        if isChangeScheduleStatus:
-            item.manage = 1
         dictParam=json.loads(item.json) if item.json else {}
         searchWord, searchTaskId,suffixWords,spiderList,extraParams=setDeParams(dictParam)
         extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
-        if len(searchWord):
-            for spider in spiderList:
-                print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
-                project=spider.deployProject
-                scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
-            item.startNum=len(spiderList)
-        item.save()
+        scheduleServer = getRunServer()
+        if scheduleServer:
+            scrapyd = ScrapydAPI(scheduleServer, timeout=8)
+            if isChangeScheduleStatus:
+                item.manage = 1
+            item.startNum = len(spiderList)
+            item.save()
+            if len(searchWord):
+                for spider in spiderList:
+                    print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
+                    project=spider.deployProject
+                    scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
 
 @periodic_task(run_every=3)
 def sheduleCustomerTask(**kwargs):
