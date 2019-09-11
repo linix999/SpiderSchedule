@@ -143,7 +143,7 @@ USE_TZ = False
 STATIC_URL = '/static/'
 
 SCRAPYD_URLS = [
-                'http://192.168.1.118:6800'
+                'http://192.168.1.118:6800',
                 ]
 
 djcelery.setup_loader()
