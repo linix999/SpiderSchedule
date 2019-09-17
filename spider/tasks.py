@@ -24,10 +24,14 @@ def getRunServer(deployProject='searchSpiders'):
     minTaskServer=None
     minTasks=-1
     for server in servers:
-        scrapyd = ScrapydAPI(server, timeout=8)
-        jobs=scrapyd.list_jobs(project=deployProject)
-        taskNums=len(jobs.get('pending',[]))+len(jobs.get('running',[]))
-        print("Running tasks is %s" %taskNums)
+        try:
+            scrapyd = ScrapydAPI(server, timeout=8)
+            jobs=scrapyd.list_jobs(project=deployProject)
+            taskNums=len(jobs.get('pending',[]))+len(jobs.get('running',[]))
+        except BaseException as e:
+            print("this server is not deployed, %s" %server)
+            continue
+        print("server: %s Running tasks is %s" %(server,taskNums))
         if taskNums<maxScheduleTasks and (taskNums<minTasks or minTasks<0) :
             minTaskServer=server
             minTasks=taskNums
