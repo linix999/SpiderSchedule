@@ -71,7 +71,11 @@ def commonSchedule(catagery,isChangeScheduleStatus):
     else:
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
-        dictParam=json.loads(item.json) if item.json else {}
+        try:
+            dictParam=json.loads(item.json) if item.json else {}
+        except BaseException as e:
+            print("json传入非法数据！")
+            dictParam={}
         searchWord, searchTaskId,suffixWords,spiderList,extraParams=setDeParams(dictParam)
         extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
         scheduleServer = getRunServer()
@@ -79,13 +83,13 @@ def commonSchedule(catagery,isChangeScheduleStatus):
             scrapyd = ScrapydAPI(scheduleServer, timeout=8)
             if isChangeScheduleStatus:
                 item.manage = 1
-            item.startNum = len(spiderList)
-            item.save()
             if len(searchWord):
+                item.startNum = len(spiderList)
                 for spider in spiderList:
                     print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
                     project=spider.deployProject
                     scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
+            item.save()
 
 @periodic_task(run_every=3)
 def sheduleCustomerTask(**kwargs):
