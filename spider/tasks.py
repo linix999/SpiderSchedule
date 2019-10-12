@@ -28,13 +28,13 @@ def getRunServer(deployProject='searchSpiders'):
             scrapyd = ScrapydAPI(server, timeout=8)
             jobs=scrapyd.list_jobs(project=deployProject)
             taskNums=len(jobs.get('pending',[]))+len(jobs.get('running',[]))
+            print("server: %s Running tasks is %s" % (server, taskNums))
+            if taskNums<maxScheduleTasks and (taskNums<minTasks or minTasks<0) :
+                minTaskServer=server
+                minTasks=taskNums
         except BaseException as e:
             print("this server is not deployed, %s" %server)
-            continue
-        print("server: %s Running tasks is %s" %(server,taskNums))
-        if taskNums<maxScheduleTasks and (taskNums<minTasks or minTasks<0) :
-            minTaskServer=server
-            minTasks=taskNums
+
     return minTaskServer
 
 def setDeParams(dictPara):
@@ -61,7 +61,7 @@ def setDeParams(dictPara):
             if spiderObjs:
                 spiderList.append(spiderObjs[0])
     else:
-        spiderList = Spider.objects.filter(status__exact=0)
+        spiderList = Spider.objects.filter(status__exact=0).filter(catagery__exact=0)
 
     return searchWord.strip(),searchTaskId,suffixWords,spiderList,extraParams
 
@@ -71,6 +71,9 @@ def commonSchedule(catagery,isChangeScheduleStatus):
     else:
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
+        if isChangeScheduleStatus:
+            item.manage = 1
+            item.save()
         try:
             dictParam=json.loads(item.json) if item.json else {}
         except BaseException as e:
@@ -81,8 +84,6 @@ def commonSchedule(catagery,isChangeScheduleStatus):
         scheduleServer = getRunServer()
         if scheduleServer:
             scrapyd = ScrapydAPI(scheduleServer, timeout=8)
-            if isChangeScheduleStatus:
-                item.manage = 1
             if len(searchWord):
                 item.startNum = len(spiderList)
                 for spider in spiderList:
