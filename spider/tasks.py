@@ -71,11 +71,11 @@ def commonSchedule(catagery,isChangeScheduleStatus):
     else:
         results=MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
     for item in results:
-        if isChangeScheduleStatus:
-            item.manage = 1
-            item.save()
         try:
             dictParam=json.loads(item.json) if item.json else {}
+            if isChangeScheduleStatus:
+                item.manage = 1
+                item.save()
         except BaseException as e:
             print("json传入非法数据！")
             dictParam={}
@@ -90,6 +90,9 @@ def commonSchedule(catagery,isChangeScheduleStatus):
                     print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
                     project=spider.deployProject
                     scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
+            item.save()
+        elif isChangeScheduleStatus:
+            item.manage = 0
             item.save()
 
 @periodic_task(run_every=3)
