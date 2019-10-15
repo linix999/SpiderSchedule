@@ -71,38 +71,46 @@ def setDeParams(dictPara):
     return searchWord.strip(),searchTaskId,suffixWords,spiderList,extraParams
 
 def commonSchedule(catagery,isChangeScheduleStatus):
-    scheduleServer = getRunServer()
-    if scheduleServer:
-        #print('this time select scrapyd server is %s' % scheduleServer)
-        for i in range(scrapydBatchSize):
-            try:
-                if catagery==1:
-                    item = MovieCrawlState.objects.get(task__exact=catagery)
-                else:
-                    item=MovieCrawlState.objects.get(Q(manage__exact=0),Q(task__exact=catagery))
-                    if isChangeScheduleStatus:
-                        print(item.manage)
-                        item.manage=1
-                        item.save()
-            except BaseException as e:
-                return
+    if catagery == 1:
+        results = MovieCrawlState.objects.filter(task__exact=catagery)
+    else:
+        queryResults = MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)[:]
+        results=queryResults
 
+    i=0
+    scheduleServer=None
+    for item in results:
+        if isChangeScheduleStatus:
+            item.manage+=1
+            item.save()
+        if (item.manage==1 and catagery==0) or catagery==1:
             try:
-                dictParam=json.loads(item.json) if item.json else {}
+                dictParam = json.loads(item.json) if item.json else {}
             except BaseException as e:
                 print("json传入非法数据！")
-                dictParam={}
-            searchWord, searchTaskId,suffixWords,spiderList,extraParams=setDeParams(dictParam)
+                dictParam = {}
+            searchWord, searchTaskId, suffixWords, spiderList, extraParams = setDeParams(dictParam)
             extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
+            if i%scrapydBatchSize==0:
+                scheduleServer = getRunServer()
 
-            scrapyd = ScrapydAPI(scheduleServer, timeout=8)
-            if len(searchWord):
-                item.startNum = len(spiderList)
+            if scheduleServer:
+                scrapyd = ScrapydAPI(scheduleServer, timeout=8)
+                if len(searchWord):
+                    item.startNum = len(spiderList)
+                    item.save()
+                    for spider in spiderList:
+                        print(spider.deployProject, spider.name, searchWord, searchTaskId, suffixWords, extraParams)
+                        project = spider.deployProject
+                        scrapyd.schedule(project=project, spider=spider.name, keyword=searchWord, searchTaskId=searchTaskId,
+                                         suffixWords=suffixWords, extraParams=extraParams)
+
+            elif isChangeScheduleStatus:
+                item.manage = 0
                 item.save()
-                for spider in spiderList:
-                    print(spider.deployProject,spider.name,searchWord,searchTaskId,suffixWords,extraParams)
-                    project=spider.deployProject
-                    scrapyd.schedule(project=project,spider=spider.name,keyword=searchWord,searchTaskId=searchTaskId,suffixWords=suffixWords,extraParams=extraParams)
+            i+=1
+        elif item.manage>1:
+            item.manage=1
 
 
 @periodic_task(run_every=3)
