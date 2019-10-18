@@ -4,8 +4,6 @@
 
 import json
 import datetime
-import random
-from django.db.models import Q
 from celery.task import task,periodic_task
 from celery.schedules import crontab
 from scrapyd_api import ScrapydAPI
@@ -13,7 +11,6 @@ from .models import Spider,SuffixWords
 from hangzhou.models import MovieCrawlState
 from django.conf import settings
 
-maxScheduleTasks=500
 scrapydBatchSize=16
 @task()
 def add(x,y):
@@ -34,11 +31,11 @@ def getRunServer(deployProject='searchSpiders'):
             #print("server: %s Running tasks is %s" % (server, taskNums))
             if taskNums<scrapydBatchSize:
                 return server
-            if taskNums<maxScheduleTasks and (taskNums<minTasks or minTasks<0) :
+            if (taskNums<minTasks or minTasks<0) :
                 minTaskServer=server
                 minTasks=taskNums
         except BaseException as e:
-            print("this server is not deployed, %s" %server)
+            print(" %s this server is not deployed, %s" %(server,e))
 
     return minTaskServer
 
@@ -74,43 +71,37 @@ def commonSchedule(catagery,isChangeScheduleStatus):
     if catagery == 1:
         results = MovieCrawlState.objects.filter(task__exact=catagery)
     else:
-        queryResults = MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)[:]
-        results=queryResults
+        results = MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
 
     i=0
     scheduleServer=None
     for item in results:
-        if isChangeScheduleStatus:
-            item.manage+=1
+        try:
+            dictParam = json.loads(item.json) if item.json else {}
+        except BaseException as e:
+            print("json传入非法数据！")
+            dictParam = {}
+        searchWord, searchTaskId, suffixWords, spiderList, extraParams = setDeParams(dictParam)
+        extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
+        if i%scrapydBatchSize==0:
+            scheduleServer = getRunServer()
+
+        if scheduleServer:
+            if isChangeScheduleStatus:
+                item.manage=1
+            scrapyd = ScrapydAPI(scheduleServer, timeout=8)
+            if len(searchWord):
+                item.startNum = len(spiderList)
+
+                for spider in spiderList:
+                    print(spider.deployProject, spider.name, searchWord, searchTaskId, suffixWords, extraParams)
+                    project = spider.deployProject
+                    scrapyd.schedule(project=project, spider=spider.name, keyword=searchWord, searchTaskId=searchTaskId,
+                                     suffixWords=suffixWords, extraParams=extraParams)
             item.save()
-        if (item.manage==1 and catagery==0) or catagery==1:
-            try:
-                dictParam = json.loads(item.json) if item.json else {}
-            except BaseException as e:
-                print("json传入非法数据！")
-                dictParam = {}
-            searchWord, searchTaskId, suffixWords, spiderList, extraParams = setDeParams(dictParam)
-            extraParams = json.dumps(extraParams, ensure_ascii=False, separators=(',', ':'))
-            if i%scrapydBatchSize==0:
-                scheduleServer = getRunServer()
 
-            if scheduleServer:
-                scrapyd = ScrapydAPI(scheduleServer, timeout=8)
-                if len(searchWord):
-                    item.startNum = len(spiderList)
-                    item.save()
-                    for spider in spiderList:
-                        print(spider.deployProject, spider.name, searchWord, searchTaskId, suffixWords, extraParams)
-                        project = spider.deployProject
-                        scrapyd.schedule(project=project, spider=spider.name, keyword=searchWord, searchTaskId=searchTaskId,
-                                         suffixWords=suffixWords, extraParams=extraParams)
+        i+=1
 
-            elif isChangeScheduleStatus:
-                item.manage = 0
-                item.save()
-            i+=1
-        elif item.manage>1:
-            item.manage=1
 
 
 @periodic_task(run_every=3)

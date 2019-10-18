@@ -88,10 +88,6 @@ DATABASES = {
     },
     "hangzhou": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": "",
-        "USER": "",
-        "PASSWORD": "",
-        "HOST": "",
         "PORT": "3306",
     },
 }
@@ -143,11 +139,16 @@ USE_TZ = False
 STATIC_URL = '/static/'
 
 SCRAPYD_URLS = [
-                'http://192.168.1.118:6800',
+                'http://192.168.1.117:6800',
+                'http://192.168.1.116:6800',
+                'http://192.168.1.115:6800',
+                'http://192.168.1.114:6800',
+                'http://192.168.1.118:6800'
                 ]
 
 djcelery.setup_loader()
 BROKER_URL='amqp://guest@localhost//'
 CELERY_RESULT_BACKEND='djcelery.backends.database:DatabaseBackend'
 CELERYBEAT_SCHEDULER = 'djcelery.schedulers.DatabaseScheduler'
+CELERYD_CONCURRENCY = 1
 CELERY_TIMEZONE = 'Asia/Shanghai'
