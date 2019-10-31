@@ -8,7 +8,7 @@ from celery.task import task,periodic_task
 from celery.schedules import crontab
 from scrapyd_api import ScrapydAPI
 from .models import Spider,SuffixWords
-from hangzhou.models import MovieCrawlState
+from hangzhou.models import MovieCrawlState,MusicCrawlState
 from django.conf import settings
 
 scrapydBatchSize=16
@@ -29,7 +29,7 @@ def getRunServer(deployProject='searchSpiders'):
             jobs=scrapyd.list_jobs(project=deployProject)
             taskNums=len(jobs.get('pending',[]))+len(jobs.get('running',[]))
             #print("server: %s Running tasks is %s" % (server, taskNums))
-            if taskNums<scrapydBatchSize:
+            if taskNums<scrapydBatchSize//2:
                 return server
             if (taskNums<minTasks or minTasks<0) :
                 minTaskServer=server
@@ -67,12 +67,19 @@ def setDeParams(dictPara):
 
     return searchWord.strip(),searchTaskId,suffixWords,spiderList,extraParams
 
-def commonSchedule(catagery,isChangeScheduleStatus):
-    if catagery == 1:
-        results = MovieCrawlState.objects.filter(task__exact=catagery)
-    else:
-        results = MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
+def commonSchedule(type,catagery,isChangeScheduleStatus):
+    if type==0:
+        if catagery == 1:
+            results = MovieCrawlState.objects.filter(task__exact=catagery)
+        else:
+            results = MovieCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
+    elif type==1:
+        if catagery == 1:
+            results = MusicCrawlState.objects.filter(task__exact=catagery)
+        else:
+            results = MusicCrawlState.objects.filter(manage__exact=0).filter(task__exact=catagery)
 
+    results=results[:(len(settings.SCRAPYD_URLS)*scrapydBatchSize)]
     i=0
     scheduleServer=None
     for item in results:
@@ -92,7 +99,6 @@ def commonSchedule(catagery,isChangeScheduleStatus):
             scrapyd = ScrapydAPI(scheduleServer, timeout=8)
             if len(searchWord):
                 item.startNum = len(spiderList)
-
                 for spider in spiderList:
                     print(spider.deployProject, spider.name, searchWord, searchTaskId, suffixWords, extraParams)
                     project = spider.deployProject
@@ -106,10 +112,12 @@ def commonSchedule(catagery,isChangeScheduleStatus):
 
 @periodic_task(run_every=3)
 def sheduleCustomerTask(**kwargs):
-    commonSchedule(0,isChangeScheduleStatus=True)
+    commonSchedule(0,0,isChangeScheduleStatus=True) #影视用户任务
+    commonSchedule(1,0,isChangeScheduleStatus=True) #音乐用户任务
     return True
 
 @periodic_task(run_every=crontab(minute=0,hour=18))
 def sheduleUserTask(**kwargs):
-    commonSchedule(1, isChangeScheduleStatus=False)
+    commonSchedule(0,1,isChangeScheduleStatus=False)   #影视定时任务
+    commonSchedule(1,1,isChangeScheduleStatus=False)   #音乐定时任务
     return True
